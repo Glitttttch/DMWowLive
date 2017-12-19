@@ -1,0 +1,562 @@
+<html>
+  <head>
+    <script src="https://d3js.org/d3.v3.js"></script>
+    <script src="./javascripts/angular.js"></script>
+    <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+    <!-- <script type="text/javascript" src="workingTwitD3/data.json"></script> -->
+    <style>
+
+    .parent{
+      width:900px;
+      height:900px;
+      position:relative;
+      left:50%;
+      top:50%;
+      margin:-450px 0 0 -450px;
+    }
+
+    .stretcher{
+      width:100%;
+    }
+
+    .chartDiv{
+      height:850px;
+      border-width: 15px;
+      border-style: solid;
+      border-color: #666 #808080 #e6e6e6 #808080;
+    }
+
+    .infoDiv{
+      height:50px;
+      text-align: center;
+      background-color: #999;
+      text-shadow: 2px 2px 3px #666;
+      font-size: 40px;
+      font-family: 'Roboto', sans-serif;
+      border-width: 10px;
+      border-style: solid;
+      border-color: #666 #808080 #e6e6e6 #808080;
+    }
+
+    .dateDiv{
+      position: absolute;
+      text-shadow: 1px 1px 3px #666;
+      margin: 10 0 0 30;
+      font-size: 20px;
+      font-family: 'Roboto', sans-serif;
+    }
+
+    .startDiv{
+      position: absolute;
+      text-shadow: 1px 1px 3px #666;
+      margin: 15 0 0 660;
+      font-size: 20px;
+      font-family: 'Roboto', sans-serif;
+    }
+
+    .stopDiv{
+      position: absolute;
+      text-shadow: 1px 1px 3px #666;
+      margin: 15 0 0 725;
+      font-size: 20px;
+      font-family: 'Roboto', sans-serif;
+    }
+
+    .colorDiv{
+      position: absolute;
+      margin: 15 0 0 375;
+      font-size: 20px;
+      font-family: 'Roboto', sans-serif;
+    }
+
+    </style>
+  </head>
+
+  <body ng-app="circleApp" ng-controller="circleController">
+	<div class='parent'>
+	  <div class='stretcher'>
+	    <div class='infoDiv' id='infoDiv'>
+	      <div class='trendDiv' id='trendDiv'></div>
+	      <div class='dateDiv' id='dateDiv'></div>
+	      <div class='startDiv' id='startDiv'></div>
+	      <div class='stopDiv' id='stopDiv'></div>
+	      <div class='colorDiv' id='colorDiv'></div>
+	  </div>
+    <div circle-chart chart-data="words" ng-if="dataHasLoaded" class="chartDiv"></div>
+	</div>
+  </body>
+
+  <script type="text/javascript">
+
+var width = 900, height = 850;
+var rect = [0, 0, width, height];
+var clock = new Date();
+var keyword = 'Topic';
+
+var force = d3.layout.force()
+    .size([width, height])
+    .gravity(0)
+    .charge(0);
+
+var nodes = [];
+var d3app = angular.module ("circleApp", []);
+var deletedItems = [];
+var addedItems = [];
+var initialization = true;
+    function valueIndexOf(array, value) {
+        for(var i = 0; i < array.length; i++) {
+            if(array[i]._id == value._id)
+                return i;
+        }
+        return -1;
+    }
+
+d3app.controller("circleController", ['$scope','$http', '$interval', function($scope, $http, $interval){
+    $scope.dataHasLoaded = false;
+    $http.get("/api/wordCount")
+        .success(function (response) {
+            nodes = response;
+            $scope.words = nodes;
+            console.table($scope.words);
+            $scope.dataHasLoaded = true
+        });
+    $interval(function(){
+        $http.get("/api/wordCount")
+	    .success(function (response) {
+                nodes = response;
+                console.log("Total response length: " + nodes.length);
+                // Correlate each value in incoming array
+                var changes = [];
+                addedItems = [];
+                deletedItems = $scope.words.slice();
+                //            console.groupCollapsed("Adds");
+                for (var i = 0; i < nodes.length; i++) {
+                    var found = false;
+                    for (var j = 0; j < $scope.words.length; j++) {
+                        if(nodes[i]._id == $scope.words[j]._id) {
+                            found = true;
+                            if(nodes[i].value != $scope.words[j].value){
+                                deletedItems[valueIndexOf(deletedItems,$scope.words[j])].value = nodes[i].value;
+                                $scope.words[j].value = nodes[i].value;
+
+                                changes.push(nodes[i]);
+                                console.log("Updating node " + nodes[i]._id);
+                            }
+                            deletedItems.splice(valueIndexOf(deletedItems,nodes[i]), 1);
+                            // Remove this from the deleted items
+
+                        }
+                    }
+                    if (found == false){
+                        addedItems.push(nodes[i]);
+                        //                        console.log("Adding word " + nodes[i]._id);
+                    }
+
+                }
+                for(var y = 0; y < addedItems.length; y++) {
+                    $scope.words.push(addedItems[y]);
+                }
+                //              console.groupEnd();
+                console.log("Deleting " + deletedItems.length);
+                console.groupCollapsed("deletes");
+                for (var z = 0; z < deletedItems.length; z++) {
+                    $scope.words.splice(valueIndexOf($scope.words,deletedItems[z]),1);
+                    console.log("Deleting word " + deletedItems[z]._id);
+                }
+                console.groupEnd();
+                //                console.table(changes);
+                console.log((changes.length + deletedItems.length) + "values changed");
+                $scope.dataHasLoaded = true
+                console.log("Total array length: " + $scope.words.length);
+                $scope.words.sort(function(a,b) {
+                    return b.value-a.value;
+                });
+	    });
+    }, 3000);
+}]);
+
+d3app.directive("circleChart", function($parse, $window){
+    return {
+        restrict:'EA',
+        template: "<svg width='900' height='850'></svg>",
+        link: function(scope, elem, attrs){
+            var exp = $parse(attrs.chartData);
+            var salesDataToPlot=scope[attrs.chartData];
+            var padding = 100;
+            var pathClass = "path";
+            var xScale, yScale, xAxisGen, yAxisGen, lineFun;
+            var d3 = $window.d3;
+            var rawSvg = elem.find("svg")[0];
+            var svg = d3.select(rawSvg);
+            var m = 15,
+                padding = 0,
+                maxSpeed = 2,
+                radius=5;
+
+                var trendText = d3.select("#infoDiv").append("text")
+                  .text(function(d){
+                    return keyword;
+                    })
+
+                var dateText = d3.select("#dateDiv").append("text")
+                  .text(function(d){
+                    var d_names = new Array("Sunday", "Monday", "Tuesday",
+                    "Wednesday", "Thursday", "Friday", "Saturday");
+
+                    var m_names = new Array("January", "February", "March",
+                    "April", "May", "June", "July", "August", "September",
+                    "October", "November", "December");
+
+                    var d = new Date();
+                    var curr_day = d.getDay();
+                    var curr_date = d.getDate();
+                    var sup = "";
+                    if (curr_date == 1 || curr_date == 21 || curr_date ==31){sup = "st";}
+                    else if (curr_date == 2 || curr_date == 22){sup = "nd";}
+                    else if (curr_date == 3 || curr_date == 23){sup = "rd";}
+                    else{sup = "th";}
+                    var curr_month = d.getMonth();
+                    var curr_year = d.getFullYear();
+                    document.getElementById("dateDiv").innerHTML = m_names[curr_month] + " " + curr_date + "<SUP>"
+                    + sup + "</SUP> "  + curr_year;
+                    })
+
+                var startText = d3.select("#startDiv").append("text")
+                  .text(function(d){
+                    Number.prototype.pad = function (len) {
+                      return (new Array(len+1).join("0") + this).slice(-len);
+                    }
+                    var a_p = "";
+                    var d = new Date();
+                    var curr_hour = d.getHours();
+                    if (curr_hour < 12) {a_p = "AM";}
+                    else {a_p = "PM";}
+                    if (curr_hour == 0) {curr_hour = 12;}
+                    if (curr_hour > 12) {curr_hour = curr_hour - 12;}
+                    var curr_min = d.getMinutes().pad(2);
+                    curr_min = curr_min + "";
+                    if (curr_min.length == 1) {curr_min = "0" + curr_min;}
+                    var curr_sec = d.getSeconds().pad(2);
+                    document.getElementById("startDiv").innerHTML = curr_hour + ":" + curr_min
+                    + " " + " - ";
+                    })
+
+                setInterval(function(){
+                  Number.prototype.pad = function (len) {
+                    return (new Array(len+1).join("0") + this).slice(-len);
+                  }
+                  var a_p = "";
+                  var d = new Date();
+                  var curr_hour = d.getHours();
+                  if (curr_hour < 12) {a_p = "AM";}
+                  else{a_p = "PM";}
+                  if (curr_hour == 0) {curr_hour = 12;}
+                  if (curr_hour > 12) {curr_hour = curr_hour - 12;}
+                  var curr_min = d.getMinutes().pad(2);
+                  curr_min = curr_min + "";
+                  if (curr_min.length == 1){curr_min = "0" + curr_min;}
+                  var curr_sec = d.getSeconds().pad(2);
+                  document.getElementById("stopDiv").innerHTML = curr_hour + ":" + curr_min
+                    + " " + a_p + " (EST)";
+                  }, 1000);
+
+            function setChartParameters(){
+                xScale = d3.scale.linear()
+                    .domain([0, salesDataToPlot.length])
+                    .range([padding/2, rawSvg.clientWidth - padding/2]);
+
+                yScale = d3.scale.linear()
+                    .domain([salesDataToPlot[0].value,salesDataToPlot[salesDataToPlot.length - 1].value])
+                    .range([padding + 5, rawSvg.clientHeight - padding]);
+
+                xAxisGen = d3.svg.axis()
+                    .scale(xScale)
+                    .orient("bottom")
+                    .ticks(20);
+
+                yAxisGen = d3.svg.axis()
+                    .scale(yScale)
+                    .orient("left")
+                    .ticks(20);
+
+                lineFun = d3.svg.line()
+                    .x(function (d, i) {
+                        return xScale(i);
+                    })
+                    .y(function (d) {
+                        return yScale(d.value);
+                    });
+            }
+
+            scope.$watchCollection(exp, function(newVal, oldVal) {
+                salesDataToPlot = newVal;
+                redrawCircleChart();
+                //redrawLineChart();
+            });
+
+            function redrawLineChart() {
+
+                setChartParameters();
+                svg.selectAll("g.y.axis").call(yAxisGen);
+                svg.selectAll("g.x.axis").call(xAxisGen);
+                svg.selectAll("." + pathClass)
+                    .attr({
+                        d: lineFun(salesDataToPlot)
+                    });
+            }
+            function setCircleChartParameters(initial) {
+                radius = d3.scale.linear()
+                    .domain([d3.min(scope.words, function(d) { return d.value; }),
+                             d3.max(scope.words, function(d) { return d.value; })])
+                    .range([20,120])
+
+                for (i in d3.range(scope.words.length)) {
+  	            scope.words[i].radius = radius(nodes[i].value);
+
+                    if(initial || valueIndexOf(addedItems,scope.words[i])!=-1 ){
+                        console.log("Adding new item: "+addedItems[valueIndexOf(addedItems,scope.words[i])]);
+                        console.log("Initial");
+  	                scope.words[i].x = rect[0] + (Math.random() * (rect[2] - rect[0])),
+  	                scope.words[i].y = rect[3]/2 - 400,
+  	                scope.words[i].speedX = 0,
+  	                scope.words[i].speedY = -2
+                    }
+                }
+
+            }
+            var circle;
+            function redrawCircleChart() {
+                setCircleChartParameters(false);
+                                //update
+                                var grads = svg.append("defs").selectAll("radialGradient")
+                    	            .data(nodes)
+                    	            .enter()
+                    	            .append("radialGradient")
+                    	            .attr("gradientUnits", "objectBoundingBox")
+                    	            .attr("cx", 0)
+                    	            .attr("cy", 0)
+                    	            .attr("r", "100%")
+                    	            .attr("id", function(d, i) { return "grad" + i; });
+
+                                grads.append("stop")
+                    	            .attr("offset", "0%")
+                    	            .style("stop-color", "white");
+
+                                grads.append("stop")
+                    	            .attr("offset", "100%")
+                    	            .style("stop-color",  "red")
+                                    .transition()
+                                    .duration(30000)
+                                    .delay(function(d, i) { return i * 2000; })
+                                    .style("stop-color",  "orange")
+                                    .transition()
+                                    .duration(30000)
+                                    .style("stop-color",  "gold")
+                                    .transition()
+                                    .duration(30000)
+                                    .style("stop-color",  "green")
+                                    .transition()
+                                    .duration(30000)
+                                    .style("stop-color",  "blue")
+                                    .transition()
+                                    .duration(30000)
+                                    .style("stop-color",  "indigo")
+                                    .transition()
+                                    .duration(30000)
+                                    .style("stop-color",  "violet")
+                                    .transition()
+                                    .duration(30000);
+
+                circle = svg.selectAll("circle")
+                    .data(scope.words, function(d) { return d._id; });
+                circle.select("title")
+                    .text(function(d, i) { return "Word: " + scope.words[i]._id + ' - ' + "Count: " + scope.words[i].value;});
+                var duration = 300;
+                var delay = 0;
+
+                //update
+                circle.transition()
+                    .duration(duration)
+                    .delay(function(d, i) {delay = i * 7; return delay;})
+                    .attr('r', function(d) { return d.radius;})
+
+                //enter
+                circle.enter().append("circle")
+                    .attr("r", function(d) {return d.radius;})
+                    .attr("cx", function(d) {return d.x;})
+                    .attr("cy", function(d) {return d.y;})
+                    .attr('class', function(d) { return d.className; })
+                    .style("fill", function(d, i) {
+      		        return "url(#grad" + i + ")";
+      	            })
+                    .call(force.drag);
+
+                circle.append("title")
+                    .text(function(d, i) { return "Word: " + scope.words[i]._id + ' - ' + "Count: " + scope.words[i].value;});
+
+                circle.exit()
+                    .transition()
+                    .duration(duration + delay)
+                    .remove();
+
+                force
+                    .nodes(scope.words)
+                    .on("tick", tick)
+                    .start();
+            }
+
+            function drawCircleChart() {
+                setCircleChartParameters(true);
+                var grads = svg.append("defs").selectAll("radialGradient")
+    	            .data(nodes)
+    	            .enter()
+    	            .append("radialGradient")
+    	            .attr("gradientUnits", "objectBoundingBox")
+    	            .attr("cx", 0)
+    	            .attr("cy", 0)
+    	            .attr("r", "100%")
+    	            .attr("id", function(d, i) { return "grad" + i; });
+
+                grads.append("stop")
+    	            .attr("offset", "0%")
+    	            .style("stop-color", "white");
+
+                grads.append("stop")
+    	            .attr("offset", "100%")
+    	            .style("stop-color",  "red")
+                    .transition()
+                    .duration(30000)
+                    .delay(function(d, i) { return i * 2000; })
+                    .style("stop-color",  "orange")
+                    .transition()
+                    .duration(30000)
+                    .style("stop-color",  "gold")
+                    .transition()
+                    .duration(30000)
+                    .style("stop-color",  "green")
+                    .transition()
+                    .duration(30000)
+                    .style("stop-color",  "blue")
+                    .transition()
+                    .duration(30000)
+                    .style("stop-color",  "indigo")
+                    .transition()
+                    .duration(30000)
+                    .style("stop-color",  "violet")
+                    .transition()
+                    .duration(30000);
+
+                circle = svg.selectAll("circle")
+                    .data(scope.words, function(d) { return d._id; });
+
+                var duration = 300;
+                var delay = 0;
+
+                //update
+                circle.transition()
+                    .duration(duration)
+                    .delay(function(d, i) {delay = i * 7; return delay;})
+                    .attr('r', function(d) { return d.radius;})
+
+                //enter
+                circle.enter().append("circle")
+                    .attr("r", function(d) {return d.radius;})
+                    .attr("cx", function(d) {return d.x;})
+                    .attr("cy", function(d) {return d.y;})
+                    .attr('class', function(d) { return d.className; })
+                    .style("fill", function(d, i) {
+      		        return "url(#grad" + i + ")";
+      	            })
+                    .call(force.drag);
+
+                circle.append("title")
+                    .text(function(d, i) { return "Word: " + scope.words[i]._id + ' - ' + "Count: " + scope.words[i].value;});
+
+                circle.exit()
+                    .transition()
+                    .duration(duration + delay)
+                    .remove();
+
+                force
+                    .nodes(scope.words)
+                    .on("tick", tick)
+                    .start();
+
+
+            }
+            var flag = false;
+            function tick(e) {
+                    force.alpha(0.1)
+                    circle
+                    .each(gravity(e.alpha))
+                    .each(collide(.5))
+                    .attr("cx", function(d) { return d.x = Math.max(d.radius, Math.min((width - 28.5) - d.radius, d.x)); })
+                    .attr("cy", function(d) { return d.y = Math.max(d.radius, Math.min((height - 5) - d.radius, d.y)); });
+                }
+
+                function gravity(alpha) {
+                    return function(d) {
+                        d.y = d.y + (-1 * d.speedY * alpha);
+                    };
+                }
+
+                function collide(alpha) {
+                    var quadtree = d3.geom.quadtree(scope.words);
+                    return function(d) {
+                        var r = d.radius + radius.domain()[1] + padding,
+                            nx1 = d.x - r,
+                            nx2 = d.x + r,
+                            ny1 = d.y - r,
+                            ny2 = d.y + r;
+                        quadtree.visit(function(quad, x1, y1, x2, y2) {
+                            if (quad.point && (quad.point !== d)) {
+                                var x = d.x - quad.point.x,
+                                    y = d.y - quad.point.y,
+                                    l = Math.sqrt(x * x + y * y),
+                                    r = d.radius + quad.point.radius + (d.color !== quad.point.color) * padding;
+                                if (l < r) {
+                                    l = (l - r) / l * alpha;
+                                    d.x -= x *= l;
+                                    d.y -= y *= l;
+                                    quad.point.x += x;
+                                    quad.point.y += y;
+                                }
+                            }
+                            return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
+                        });
+                    };
+                }
+
+            // function drawLineChart() {
+            //
+            //     setChartParameters();
+            //
+            //     svg.append("svg:g")
+            //         .attr("class", "x axis")
+            //         .attr("transform", "translate(0,"+(rawSvg.clientHeight - padding/2)+")")
+            //         .call(xAxisGen);
+            //
+            //     svg.append("svg:g")
+            //         .attr("class", "y axis")
+            //         .attr("transform", "translate("+50+",0)")
+            //         .call(yAxisGen);
+            //
+            //     svg.append("svg:path")
+            //         .attr({
+            //             d: lineFun(salesDataToPlot),
+            //             "stroke": "blue",
+            //             "stroke-width": 2,
+            //             "fill": "none",
+            //             "class": pathClass
+            //         });
+            // }
+
+            //drawLineChart();
+            drawCircleChart();
+        }
+    }
+});
+
+
+                                                                            </script>
+</html>

@@ -1,0 +1,402 @@
+<html>
+	<head>
+		<script src="https://d3js.org/d3.v3.js"></script>
+		<link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+		<style>
+
+		.parent{
+			width:900px;
+			height:900px;
+			position:relative;
+			left:50%;
+			top:50%;
+			margin:-450px 0 0 -450px;
+		}
+
+		.stretcher{
+			width:100%;
+		}
+
+		.topDiv{
+			height:705px;
+			border-width: 15px;
+			border-style: solid;
+  		border-color: #666 #808080 #e6e6e6 #808080;
+		}
+
+		.botDiv{
+			height:180px;
+			background-color: #999;
+			border-width: 10px;
+			border-style: solid;
+  		border-color: #666 #808080 #e6e6e6 #808080;
+		}
+
+		.trendDiv{
+			position: absolute;
+			margin: 20 0 0 25;
+			font-size: 20px;
+			font-family: 'Roboto', sans-serif;
+		}
+
+		.dateDiv{
+			position: absolute;
+			margin: 55 0 0 25;
+			font-size: 20px;
+			font-family: 'Roboto', sans-serif;
+		}
+
+		.startDiv{
+			position: absolute;
+			margin: 95 0 0 25;
+			font-size: 20px;
+			font-family: 'Roboto', sans-serif;
+		}
+
+		.stopDiv{
+			position: absolute;
+			margin: 135 0 0 25;
+			font-size: 20px;
+			font-family: 'Roboto', sans-serif;
+		}
+
+		.colorDiv{
+			position: absolute;
+			margin: 15 0 0 375;
+			font-size: 20px;
+			font-family: 'Roboto', sans-serif;
+		}
+
+		.tenDiv{
+			position: absolute;
+			margin:-10 0 0 600;
+			font-size: 14px;
+			font-family: 'Roboto', sans-serif;
+		}
+
+		</style>
+	</head>
+
+	<body>
+		<div class='parent'>
+			<div class='stretcher'>
+				<div class='topDiv' id='topDiv' ng-app="FormApp"></div>
+				<div class='botDiv' id='botDiv'>
+					<div class='trendDiv' id='trendDiv'></div>
+					<div class='dateDiv' id='dateDiv'></div>
+					<div class='startDiv' id='startDiv'></div>
+					<div class='stopDiv' id='stopDiv'></div>
+					<div class='colorDiv' id='colorDiv'>
+						<table border="0">
+						  <tr>
+						    <td bgcolor="violet">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+						    <td>18 minutes</td>
+						  </tr>
+						  <tr>
+						    <td bgcolor="indigo">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+						    <td>15 minutes</td>
+						  </tr>
+						  <tr>
+						    <td bgcolor="blue">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+						    <td>12 minutes</td>
+						  </tr>
+						  <tr>
+						    <td bgcolor="green">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+						    <td>9 minutes</td>
+						  </tr>
+						  <tr>
+						    <td bgcolor="gold">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+						    <td>6 minutes</td>
+						  </tr>
+						  <tr>
+						    <td bgcolor="orange">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+						    <td>3 minutes</td>
+						  </tr>
+						  <tr>
+						    <td bgcolor="red">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+						    <td>Start</td>
+						  </tr>
+						</table>
+					</div>
+					<div class='tenDiv' id='tenDiv'>
+						<ol type="1" id='topTen'></ol>
+					</div>
+				</div>
+			</div>
+		</div>
+	</body>
+
+<script>
+
+var width = 900, height = 720;
+var rect = [0, 0, width, height];
+var clock = new Date();
+var keyword = 'pizza';
+
+var topTen = [];
+
+var force = d3.layout.force()
+      .size([width, height])
+      .gravity(0)
+      .charge(0);
+
+var nodes = [];
+
+var svg = d3.select("#topDiv").append("svg")
+  .attr("width", width)
+  .attr("height", height)
+  .append("g");
+
+  svg.append("svg:rect")
+    .attr("width", rect[2] - rect[0])
+    .attr("height", rect[3] - rect[1])
+    .attr("x", rect[0])
+    .attr("y", rect[1])
+    .style("fill", "None");
+
+
+var info = d3.select("#botDiv").append("svg")
+  	  .attr("width", 900)
+  	  .attr("height", 180)
+  	  .append("g");
+
+  info.append("svg:rect")
+  	  .attr("width", 900)
+  	  .attr("height", 180)
+  	  .attr("x", rect[0])
+  	  .attr("y", rect[1])
+  	  .style("fill", "None");
+
+d3.json("data.json", function(error, data){
+  nodes = data.filter(function(d) {
+    return d.value >= 50;
+  });
+
+  var m = 15,
+      padding = 0,
+      maxSpeed = 2;
+
+	setInterval(function () {
+		topTen = nodes.slice(0,10);
+
+		var html = "";
+		for(var i = 0; i < topTen.length; i++) {
+			html += "<li>" + topTen[i]._id + " - " + topTen[i].value + "</li>";
+		}
+		document.getElementById('topTen').innerHTML = html;
+	}, 1000);
+
+  var radius = d3.scale.linear()
+            .domain([d3.min(nodes, function(d) { return d.value; }),
+              d3.max(nodes, function(d) { return d.value; })])
+            .range([20,125])
+
+    console.log(d3.min(nodes, function(d) { return d.value; }));
+    console.log(d3.max(nodes, function(d) { return d.value; }));
+
+    for (i in d3.range(nodes.length)) {
+  	    nodes[i].radius = radius(nodes[i].value),
+  	    nodes[i].x = rect[0] + (Math.random() * (rect[2] - rect[0])),
+  	    nodes[i].y = rect[1] + (Math.random() * (rect[3] - rect[1])),
+  	    nodes[i].speedX = 0,
+  	    nodes[i].speedY = -2
+    }
+
+    console.log(nodes[0]);
+    console.log(nodes);
+
+		var trendText = d3.select("#trendDiv").append("text")
+			.text(function(d){
+				return "Trending Topic: " + keyword;
+				})
+
+		var dateText = d3.select("#dateDiv").append("text")
+			.text(function(d){
+				var d_names = new Array("Sunday", "Monday", "Tuesday",
+				"Wednesday", "Thursday", "Friday", "Saturday");
+
+				var m_names = new Array("January", "February", "March",
+				"April", "May", "June", "July", "August", "September",
+				"October", "November", "December");
+
+				var d = new Date();
+				var curr_day = d.getDay();
+				var curr_date = d.getDate();
+				var sup = "";
+				if (curr_date == 1 || curr_date == 21 || curr_date ==31){sup = "st";}
+				else if (curr_date == 2 || curr_date == 22){sup = "nd";}
+				else if (curr_date == 3 || curr_date == 23){sup = "rd";}
+				else{sup = "th";}
+				var curr_month = d.getMonth();
+				var curr_year = d.getFullYear();
+				document.getElementById("dateDiv").innerHTML = d_names[curr_day] + ", " + m_names[curr_month] + " " + curr_date + "<SUP>"
+				+ sup + "</SUP> "  + curr_year;
+				})
+
+		var startText = d3.select("#startDiv").append("text")
+			.text(function(d){
+				Number.prototype.pad = function (len) {
+					return (new Array(len+1).join("0") + this).slice(-len);
+				}
+				var a_p = "";
+				var d = new Date();
+				var curr_hour = d.getHours();
+				if (curr_hour < 12) {a_p = "AM";}
+				else {a_p = "PM";}
+				if (curr_hour == 0) {curr_hour = 12;}
+				if (curr_hour > 12) {curr_hour = curr_hour - 12;}
+				var curr_min = d.getMinutes().pad(2);
+				curr_min = curr_min + "";
+				if (curr_min.length == 1) {curr_min = "0" + curr_min;}
+				var curr_sec = d.getSeconds().pad(2);
+				document.getElementById("startDiv").innerHTML = "Start: " + curr_hour + ":" + curr_min + ":"
+				+ curr_sec + " " + a_p + " (EST)";
+				})
+
+		setInterval(function(){
+			Number.prototype.pad = function (len) {
+				return (new Array(len+1).join("0") + this).slice(-len);
+			}
+			var a_p = "";
+			var d = new Date();
+			var curr_hour = d.getHours();
+			if (curr_hour < 12) {a_p = "AM";}
+			else{a_p = "PM";}
+			if (curr_hour == 0) {curr_hour = 12;}
+			if (curr_hour > 12) {curr_hour = curr_hour - 12;}
+			var curr_min = d.getMinutes().pad(2);
+			curr_min = curr_min + "";
+			if (curr_min.length == 1){curr_min = "0" + curr_min;}
+			var curr_sec = d.getSeconds().pad(2);
+			document.getElementById("stopDiv").innerHTML = "End: &nbsp;&nbsp;" + curr_hour + ":" + curr_min + ":"
+				+ curr_sec + " " + a_p + " (EST)";
+	  	}, 1000);
+
+    var grads = svg.append("defs").selectAll("radialGradient")
+    	.data(nodes)
+    	.enter()
+    	.append("radialGradient")
+    	.attr("gradientUnits", "objectBoundingBox")
+    	.attr("cx", 0)
+    	.attr("cy", 0)
+    	.attr("r", "100%")
+    	.attr("id", function(d, i) { return "grad" + i; });
+
+    grads.append("stop")
+    	.attr("offset", "0%")
+    	.style("stop-color", "white");
+
+    grads.append("stop")
+    	.attr("offset", "100%")
+    	.style("stop-color",  "red")
+      .transition()
+      .duration(30000)
+      .delay(function(d, i) { return i * 2000; })
+      .style("stop-color",  "orange")
+      .transition()
+      .duration(30000)
+      .style("stop-color",  "gold")
+      .transition()
+      .duration(30000)
+      .style("stop-color",  "green")
+      .transition()
+      .duration(30000)
+      .style("stop-color",  "blue")
+      .transition()
+      .duration(30000)
+      .style("stop-color",  "indigo")
+      .transition()
+      .duration(30000)
+      .style("stop-color",  "violet")
+      .transition()
+      .duration(30000);
+
+    var circle = svg.selectAll("circle")
+      .data(nodes, function(d) { return d._id; });
+
+      var duration = 300;
+      var delay = 0;
+
+      //update
+      circle.transition()
+        .duration(duration)
+        .delay(function(d, i) {delay = i * 7; return delay;})
+        .attr('r', function(d) { return d.radius;})
+
+      //enter
+      circle.enter().append("circle")
+        .attr("r", function(d) {return d.radius;})
+        .attr("cx", function(d) {return d.x;})
+        .attr("cy", function(d) {return d.y;})
+        .attr('class', function(d) { return d.className; })
+        .style("fill", function(d, i) {
+      		return "url(#grad" + i + ")";
+      	})
+        .call(force.drag);
+
+
+				circle.append("text")
+					.attr("text-anchor", "middle")
+					.text(function(d, i) { return nodes[i]._id; });
+
+      // circle.append("title")
+      //   .text(function(d, i) { return "Word: " + nodes[i]._id + ' - ' + "Count: " + nodes[i].value;});
+
+      circle.exit()
+        .transition()
+        .duration(duration + delay)
+        .remove();
+
+      force
+        .nodes(nodes)
+        .on("tick", tick)
+        .start();
+
+        var flag = false;
+
+        function tick(e) {
+          force.alpha(0.1)
+          circle
+            .each(gravity(e.alpha))
+            .each(collide(.5))
+          .attr("cx", function(d) { return d.x = Math.max(d.radius, Math.min((width - 28.5) - d.radius, d.x)); })
+          .attr("cy", function(d) { return d.y = Math.max(d.radius, Math.min((height - 5) - d.radius, d.y)); });
+        }
+
+        function gravity(alpha) {
+          return function(d) {
+            d.y = d.y + (-1 * d.speedY * alpha);
+          };
+        }
+
+        function collide(alpha) {
+          var quadtree = d3.geom.quadtree(nodes);
+          return function(d) {
+            var r = d.radius + radius.domain()[1] + padding,
+              nx1 = d.x - r,
+              nx2 = d.x + r,
+              ny1 = d.y - r,
+              ny2 = d.y + r;
+            quadtree.visit(function(quad, x1, y1, x2, y2) {
+              if (quad.point && (quad.point !== d)) {
+                var x = d.x - quad.point.x,
+                  y = d.y - quad.point.y,
+                  l = Math.sqrt(x * x + y * y),
+                  r = d.radius + quad.point.radius + (d.color !== quad.point.color) * padding;
+                if (l < r) {
+                  l = (l - r) / l * alpha;
+                  d.x -= x *= l;
+                  d.y -= y *= l;
+                  quad.point.x += x;
+                  quad.point.y += y;
+                }
+              }
+              return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
+            });
+          };
+        }
+
+});
+
+</script>
+</html>
